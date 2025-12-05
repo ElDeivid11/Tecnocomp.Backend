@@ -46,7 +46,8 @@ GRAPH_USER_EMAIL = os.getenv("GRAPH_USER_EMAIL", "soporte@tecnocomp.cl")
 SHAREPOINT_HOST_NAME = "tecnocompcomputacion.sharepoint.com" 
 SHAREPOINT_SITE_PATH = "/sites/Pruueba" 
 SHAREPOINT_DRIVE_NAME = "Documentos"
-
+SHAREPOINT_SITE_ID = "tecnocompcomputacion.sharepoint.com,f67a6766-495c-41e7-8caa-eb89b1801758,661e71e7-fee3-4a98-8c3e-323b2dd43bbe"
+SHAREPOINT_LIST_ID = "803eb871-8bcc-4561-bd91-599876787eb9"
 # ==========================================
 # ESTILOS Y COLORES
 # ==========================================
