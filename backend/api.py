@@ -155,4 +155,10 @@ async def crear_reporte(
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import os
+    # IMPORTANTE: Render nos pasa el puerto en la variable de entorno 'PORT'.
+    # Si no existe (estamos en local), usamos el 8000.
+    port = int(os.environ.get("PORT", 8000))
+    
+    # Iniciamos Uvicorn escuchando en 0.0.0.0 y el puerto correcto
+    uvicorn.run(app, host="0.0.0.0", port=port)
