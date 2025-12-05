@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+python-multipart
+fpdf2
+Pillow
+pytz
+requests
