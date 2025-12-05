@@ -1,18 +1,50 @@
 import os
 
 # ==========================================
-# CONFIGURACIÓN GENERAL
+# 1. CONFIGURACIÓN DE RUTAS Y SISTEMA (¡CRÍTICO!)
 # ==========================================
+# Obtenemos la ruta absoluta de donde está este archivo
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-FONT_FAMILY = "Helvetica" # FPDF usa fuentes core por defecto
-NOMBRE_EMPRESA_ONEDRIVE = "Tecnocomp Computacion Ltda"
+# Definimos la carpeta temporal (Esto es lo que faltaba y causaba el Error 500)
+TEMP_FOLDER = os.path.join(BASE_DIR, "temp_uploads")
 
-# --- SEGURIDAD: Leemos del entorno o usamos un valor por defecto solo para pruebas locales ---
-# En Render, configuraremos estas variables en el panel de control.
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123") 
+# Ruta de la base de datos
+DB_PATH = os.path.join(BASE_DIR, "visitas.db")
+
+# Asegurar que existan los directorios necesarios al iniciar
+if not os.path.exists(TEMP_FOLDER):
+    os.makedirs(TEMP_FOLDER)
+
+# ==========================================
+# 2. CREDENCIALES MICROSOFT GRAPH (SEGURAS)
+# ==========================================
+GRAPH_CLIENT_ID = os.getenv("GRAPH_CLIENT_ID", "TU_CLIENT_ID_LOCAL")
+GRAPH_CLIENT_SECRET = os.getenv("GRAPH_CLIENT_SECRET", "TU_SECRET_LOCAL")
+GRAPH_TENANT_ID = os.getenv("GRAPH_TENANT_ID", "TU_TENANT_ID_LOCAL")
+GRAPH_USER_EMAIL = os.getenv("GRAPH_USER_EMAIL", "soporte@tecnocomp.cl")
+
+# ==========================================
+# 3. SHAREPOINT (ARCHIVOS Y LISTAS)
+# ==========================================
+SHAREPOINT_HOST_NAME = "tecnocompcomputacion.sharepoint.com" 
+SHAREPOINT_SITE_PATH = "/sites/Pruueba" 
+SHAREPOINT_DRIVE_NAME = "Documentos"
 SHAREPOINT_BACKUP_FOLDER = "Backups_DB"
 
-# Tareas de Mantenimiento
+# --- NUEVO: IDs para la Lista de SharePoint ---
+# Reemplaza estos con los que obtuviste (Site ID y List ID)
+# Formato Site ID: hostname.sharepoint.com,uuid-site,uuid-web
+SHAREPOINT_SITE_ID = "tecnocompcomputacion.sharepoint.com,f67a6766-495c-41e7-8caa-eb89b1801758,661e71e7-fee3-4a98-8c3e-323b2dd43bbe"
+SHAREPOINT_LIST_ID = "803eb871-8bcc-4561-bd91-599876787eb9"  # <--- FALTABA ESTE ID DE LA LISTA
+
+# ==========================================
+# 4. CONFIGURACIÓN GENERAL Y ESTILOS
+# ==========================================
+FONT_FAMILY = "Helvetica"
+NOMBRE_EMPRESA_ONEDRIVE = "Tecnocomp Computacion Ltda"
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123") 
+
 TAREAS_MANTENIMIENTO = [
     "Solicitar cierre de documentos y credenciales",
     "Reinicio Forzado (Shutdown -r -f -t 00)",
@@ -23,7 +55,7 @@ TAREAS_MANTENIMIENTO = [
     "Antivirus (Escaneo Rápido + Evidencia)"
 ]
 
-# DATOS INICIALES (Clientes por defecto si la DB está vacía)
+# Datos iniciales
 CORREOS_POR_CLIENTE = {
     "Intermar": "contacto@intermar.cl",
     "Las200": "admin@las200.cl"
@@ -34,23 +66,7 @@ USUARIOS_POR_CLIENTE = {
     "Las200": ["Usuario A", "Usuario B"]
 }
 
-# ==========================================
-# CREDENCIALES MICROSOFT GRAPH (SEGURAS)
-# ==========================================
-GRAPH_CLIENT_ID = os.getenv("GRAPH_CLIENT_ID", "TU_CLIENT_ID_LOCAL")
-GRAPH_CLIENT_SECRET = os.getenv("GRAPH_CLIENT_SECRET", "TU_SECRET_LOCAL")
-GRAPH_TENANT_ID = os.getenv("GRAPH_TENANT_ID", "TU_TENANT_ID_LOCAL")
-GRAPH_USER_EMAIL = os.getenv("GRAPH_USER_EMAIL", "soporte@tecnocomp.cl")
-
-# SHAREPOINT
-SHAREPOINT_HOST_NAME = "tecnocompcomputacion.sharepoint.com" 
-SHAREPOINT_SITE_PATH = "/sites/Pruueba" 
-SHAREPOINT_DRIVE_NAME = "Documentos"
-SHAREPOINT_SITE_ID = "tecnocompcomputacion.sharepoint.com,f67a6766-495c-41e7-8caa-eb89b1801758,661e71e7-fee3-4a98-8c3e-323b2dd43bbe"
-SHAREPOINT_LIST_ID = "803eb871-8bcc-4561-bd91-599876787eb9"
-# ==========================================
-# ESTILOS Y COLORES
-# ==========================================
+# Estilos
 COLOR_PRIMARIO = "#0583F2"
 COLOR_SECUNDARIO = "#2685BF"
 COLOR_ACCENTO = "#2BB9D9"
@@ -72,9 +88,3 @@ COLORES = {
 }
 
 COLORES_GRAFICOS = ["blue", "purple", "teal", "orange", "pink", "cyan", "indigo"]
-
-# Asegurar directorios
-if not os.path.exists("backups"):
-    os.makedirs("backups")
-if not os.path.exists("reportes"):
-    os.makedirs("reportes")
