@@ -7,157 +7,227 @@ import utils
 
 class PDFReporte(FPDF):
     def header(self):
-        # Fondo cabecera
-        self.set_fill_color(5, 131, 242) # Azul similar a COLOR_PRIMARIO
-        self.rect(0, 0, 210, 42, 'F')
+        # 1. Fondo Cabecera Moderna (Azul con una línea inferior más oscura)
+        self.set_fill_color(5, 131, 242) # Azul Corporativo
+        self.rect(0, 0, 210, 40, 'F')
+        self.set_fill_color(0, 86, 163) # Azul Oscuro (borde inferior)
+        self.rect(0, 40, 210, 2, 'F')
         
-        # --- CORRECCIÓN LOGO (Ruta Absoluta) ---
-        # Buscamos la carpeta 'assets' en el mismo directorio donde está este script
+        # 2. Logo (Misma lógica de rutas)
         base_dir = os.path.dirname(os.path.abspath(__file__))
         logo_path = os.path.join(base_dir, "assets", "logo.png")
         logo2_path = os.path.join(base_dir, "assets", "logo2.png")
         
         logo_final = None
-        if os.path.exists(logo_path):
-            logo_final = logo_path
-        elif os.path.exists(logo2_path):
-            logo_final = logo2_path
+        if os.path.exists(logo_path): logo_final = logo_path
+        elif os.path.exists(logo2_path): logo_final = logo2_path
             
         if logo_final:
             try: 
-                # Ajustamos coordenadas y tamaño
-                self.image(logo_final, x=10, y=6, w=50) 
-            except Exception as e:
-                print(f"Error cargando logo: {e}")
+                self.image(logo_final, x=10, y=8, h=24) 
+            except: pass
             
-        # Título
-        self.set_font('Helvetica', 'B', 16)
+        # 3. Título y Subtítulo
+        self.set_font('Helvetica', 'B', 20)
         self.set_text_color(255, 255, 255)
-        self.set_xy(140, 15)
-        self.cell(60, 10, 'INFORME TÉCNICO', 0, 0, 'R')
-        self.ln(45)
+        self.set_xy(80, 12)
+        self.cell(120, 10, 'INFORME DE VISITA TÉCNICA', 0, 0, 'R')
+        
+        self.set_font('Helvetica', '', 10)
+        self.set_xy(80, 22)
+        self.cell(120, 10, 'Departamento de Soporte IT', 0, 0, 'R')
+        self.ln(35)
 
     def footer(self):
         self.set_y(-15)
         self.set_font('Helvetica', 'I', 8)
-        self.set_text_color(128, 128, 128)
-        self.cell(0, 10, f'Página {self.page_no()}/{{nb}} - App Visitas Tecnocomp', 0, 0, 'C')
+        self.set_text_color(150, 150, 150)
+        self.cell(0, 10, f'Tecnocomp Ltda - Pág {self.page_no()}/{{nb}}', 0, 0, 'C')
 
 def generar_pdf(cliente, tecnico, obs, path_firma, datos_usuarios):
     pdf = PDFReporte(orientation='P', unit='mm', format='A4')
     pdf.alias_nb_pages()
+    pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     
-    # Datos generales
-    pdf.set_fill_color(240, 240, 240)
-    pdf.rect(10, 48, 190, 28, 'F')
+    # --- BLOQUE 1: RESUMEN DE LA VISITA (Estilo Tarjeta) ---
+    pdf.set_fill_color(245, 247, 250) # Gris muy suave
+    pdf.set_draw_color(200, 200, 200)
+    pdf.rect(10, 45, 190, 25, 'FD') # Fill and Draw
     
-    def add_data_row(label, value):
-        pdf.set_x(15)
-        pdf.set_font("Helvetica", "B", 10)
+    pdf.set_y(48)
+    pdf.set_x(15)
+    
+    # Función auxiliar para datos en línea
+    def dato_inline(label, val, x_offset):
+        pdf.set_x(x_offset)
+        pdf.set_font("Helvetica", "B", 9)
         pdf.set_text_color(100, 100, 100)
-        pdf.cell(25, 6, label, new_x=XPos.RIGHT, new_y=YPos.TOP)
-        pdf.set_font("Helvetica", "", 11)
+        pdf.cell(20, 5, label, 0, 0)
+        pdf.set_font("Helvetica", "B", 11)
         pdf.set_text_color(0, 0, 0)
-        pdf.cell(0, 6, value, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.cell(50, 5, val, 0, 0)
 
-    pdf.set_y(53)
-    add_data_row("CLIENTE:", cliente)
-    add_data_row("TÉCNICO:", tecnico)
-    add_data_row("FECHA:", utils.obtener_hora_chile().strftime('%d/%m/%Y %H:%M'))
+    # Fila 1
+    dato_inline("CLIENTE:", cliente, 15)
+    dato_inline("FECHA:", utils.obtener_hora_chile().strftime('%d/%m/%Y'), 120)
+    pdf.ln(8)
+    # Fila 2
+    dato_inline("TÉCNICO:", tecnico, 15)
+    dato_inline("HORA:", utils.obtener_hora_chile().strftime('%H:%M hrs'), 120)
     
-    pdf.ln(15)
+    pdf.ln(20)
+
+    # --- TÍTULO SECCIÓN ---
     pdf.set_font("Helvetica", "B", 12)
     pdf.set_text_color(5, 131, 242)
-    pdf.cell(0, 8, "BITÁCORA DE ATENCIÓN", align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.ln(2)
-    pdf.set_draw_color(200, 200, 200)
+    pdf.cell(0, 8, "DETALLE DE USUARIOS ATENDIDOS", 0, 1, 'L')
+    pdf.set_draw_color(5, 131, 242)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(5)
 
+    # --- BLOQUE 2: USUARIOS ---
     for u in datos_usuarios:
+        # Evitar cortes de página feos
         if pdf.get_y() > 220: pdf.add_page()
         
-        pdf.set_font("Helvetica", "B", 11)
-        pdf.set_text_color(0, 0, 0)
-        pdf.cell(140, 8, u['nombre'], new_x=XPos.RIGHT, new_y=YPos.TOP, align='L')
+        # Marco del usuario
+        y_inicio = pdf.get_y()
         
+        # Nombre y Estado
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.set_text_color(0, 0, 0)
+        pdf.cell(130, 8, f"Usuario: {u['nombre']}", 0, 0)
+        
+        # Badge de estado
         pdf.set_font("Helvetica", "B", 9)
         if u['atendido']:
-            pdf.set_fill_color(220, 255, 220)
-            pdf.set_text_color(0, 100, 0)
-            pdf.cell(50, 8, "ATENDIDO", align='C', fill=True, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            pdf.set_fill_color(220, 255, 220) # Verde claro
+            pdf.set_text_color(0, 128, 0)
+            pdf.cell(40, 7, "  ATENDIDO  ", 0, 1, 'C', fill=True)
         else:
-            pdf.set_fill_color(255, 220, 220)
+            pdf.set_fill_color(255, 230, 230) # Rojo claro
             pdf.set_text_color(180, 0, 0)
-            pdf.cell(50, 8, "NO ATENDIDO", align='C', fill=True, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            pdf.cell(40, 7, " NO ATENDIDO ", 0, 1, 'C', fill=True)
             
-        pdf.set_text_color(0, 0, 0)
         pdf.ln(2)
-        pdf.set_x(10)
-        pdf.set_font("Helvetica", "", 10)
-        texto = f"Trabajo: {u['trabajo']}" if u['atendido'] else f"Motivo: {u['motivo']}"
-        pdf.multi_cell(0, 5, texto, align='L')
-        
-        # Fotos
+
+        # --- CONTENIDO FORMATEADO (Checklist) ---
+        if u['atendido']:
+            pdf.set_font("Helvetica", "B", 10)
+            pdf.set_text_color(80, 80, 80)
+            pdf.cell(0, 6, "Tareas Realizadas:", 0, 1)
+            
+            # AQUÍ ESTÁ LA MAGIA: Parseamos el string separado por comas
+            texto_trabajo = u.get('trabajo', '')
+            if ',' in texto_trabajo:
+                items = texto_trabajo.split(',')
+                pdf.set_font("Helvetica", "", 10)
+                pdf.set_text_color(0, 0, 0)
+                for item in items:
+                    item = item.strip()
+                    if item:
+                        # Dibujamos un bullet point
+                        pdf.set_x(15)
+                        pdf.cell(5, 5, chr(149), 0, 0) # Caracter bullet
+                        pdf.cell(0, 5, item, 0, 1)
+            else:
+                # Si es texto plano sin comas
+                pdf.set_x(15)
+                pdf.set_font("Helvetica", "", 10)
+                pdf.set_text_color(0, 0, 0)
+                pdf.multi_cell(0, 5, texto_trabajo)
+                
+        else:
+            # Si no fue atendido
+            pdf.set_font("Helvetica", "B", 10)
+            pdf.set_text_color(80, 80, 80)
+            pdf.cell(20, 6, "Motivo:", 0, 0)
+            pdf.set_font("Helvetica", "", 10)
+            pdf.set_text_color(0, 0, 0)
+            pdf.multi_cell(0, 6, u.get('motivo', ''))
+
+        # --- FOTOS (GRID 3 COLUMNAS) ---
         if u.get('fotos') and u['atendido']:
-            pdf.ln(2)
+            pdf.ln(3)
             pdf.set_font("Helvetica", "B", 9)
             pdf.set_text_color(5, 131, 242)
-            pdf.cell(0, 4, "Evidencias:", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-            x_c, y_c = 10, pdf.get_y() + 1
+            pdf.cell(0, 5, "Evidencia Fotográfica:", 0, 1)
+            
+            y_fotos = pdf.get_y()
+            x_fotos = 12
+            count = 0
+            
             for fp in u['fotos']:
                 if os.path.exists(fp):
-                    if x_c + 45 > 200: 
-                        x_c = 10
-                        y_c += 40
-                    if y_c + 40 > 250: 
+                    # Control de salto de página para fotos
+                    if y_fotos + 35 > 270:
                         pdf.add_page()
-                        x_c = 10
-                        y_c = pdf.get_y()
-                    try: 
-                        pdf.image(fp, x=x_c, y=y_c, h=35)
-                        x_c += 48
+                        y_fotos = pdf.get_y()
+                        x_fotos = 12
+                        count = 0
+                        
+                    try:
+                        # Marco foto
+                        pdf.set_draw_color(220, 220, 220)
+                        pdf.rect(x_fotos-1, y_fotos-1, 47, 37) 
+                        pdf.image(fp, x=x_fotos, y=y_fotos, w=45, h=35)
+                        x_fotos += 50
+                        count += 1
+                        if count >= 3: # Salto de línea cada 3 fotos
+                            count = 0
+                            x_fotos = 12
+                            y_fotos += 40
                     except: pass
-            pdf.set_y(y_c + 40)
-        
-        # Firma usuario (Ajustada)
+            
+            # Ajustamos el cursor Y al final de las fotos
+            if count > 0 or (count == 0 and x_fotos == 12):
+                pdf.set_y(y_fotos + 40 if count > 0 else y_fotos)
+
+        # --- FIRMA USUARIO ---
         firma_usr = u.get('firma')
         if firma_usr and os.path.exists(firma_usr):
-            if pdf.get_y() + 25 > 270: pdf.add_page()
+            # Verificar espacio
+            if pdf.get_y() > 250: pdf.add_page()
             
             pdf.ln(2)
-            pdf.set_x(10)
-            pdf.set_font("Helvetica", "B", 8)
-            pdf.set_text_color(100, 100, 100)
-            pdf.cell(0, 4, f"Firma de conformidad - {u['nombre']}:", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-            try: 
-                pdf.image(firma_usr, h=15) 
-                pdf.ln(5)
+            pdf.set_font("Helvetica", "I", 8)
+            pdf.set_text_color(128, 128, 128)
+            pdf.cell(0, 4, f"Conformidad: {u['nombre']}", 0, 1)
+            try:
+                pdf.image(firma_usr, x=15, h=12)
             except: pass
-
+        
         pdf.ln(5)
+        # Línea separadora suave
         pdf.set_draw_color(230, 230, 230)
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
         pdf.ln(5)
 
-    if pdf.get_y() > 220: pdf.add_page()
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.set_text_color(5, 131, 242)
-    pdf.cell(0, 8, "OBSERVACIONES ADICIONALES", align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_font("Helvetica", "", 10)
-    pdf.set_text_color(0,0,0)
-    pdf.multi_cell(0, 6, obs if obs else "Sin observaciones adicionales.", align='L')
-    pdf.ln(10)
+    # --- OBSERVACIONES FINALES ---
+    if pdf.get_y() > 230: pdf.add_page()
     
-    if path_firma and os.path.exists(path_firma):
-        if pdf.get_y() > 200: pdf.add_page()
-        pdf.set_font("Helvetica", "B", 11)
-        pdf.cell(0, 6, "CONFORMIDAD DEL SERVICIO", align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        pdf.image(path_firma, w=50)
+    pdf.set_fill_color(245, 247, 250)
+    pdf.rect(10, pdf.get_y(), 190, 20, 'F')
+    pdf.set_xy(12, pdf.get_y()+2)
+    
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.set_text_color(5, 131, 242)
+    pdf.cell(0, 5, "OBSERVACIONES GENERALES:", 0, 1)
+    
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_x(12)
+    pdf.multi_cell(185, 5, obs if obs else "Sin observaciones adicionales.")
+    
+    # --- FIRMA TÉCNICO (Opcional, si existiera) ---
+    # Si quieres poner un pie de página o firma del técnico al final
+    pdf.ln(10)
 
+    # Guardar
     temp_dir = tempfile.gettempdir()
-    nombre_archivo = f"Reporte_{cliente}_{utils.obtener_hora_chile().strftime('%Y%m%d_%H%M%S')}.pdf"
+    nombre_clean = "".join([c for c in cliente if c.isalnum() or c in (' ','-','_')]).strip()
+    nombre_archivo = f"Reporte_{nombre_clean}_{utils.obtener_hora_chile().strftime('%Y%m%d_%H%M')}.pdf"
     ruta = os.path.join(temp_dir, nombre_archivo)
     pdf.output(ruta)
     return ruta
