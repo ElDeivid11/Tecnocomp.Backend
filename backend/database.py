@@ -241,7 +241,21 @@ def guardar_reporte(fecha, cliente, tecnico, obs, fotos_json, pdf_path, detalles
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (fecha, cliente, tecnico, obs, fotos_json, pdf_path, detalles_json, estado_envio, lat, lon))
     con.commit()
+    inserted_id = cur.lastrowid # <--- CAPTURAMOS EL ID
     con.close()
+    return inserted_id # <--- LO RETORNAMOS
+
+def guardar_reporte(fecha, cliente, tecnico, obs, fotos_json, pdf_path, detalles_json, estado_envio, lat="", lon=""):
+    con = conectar()
+    cur = con.cursor()
+    cur.execute("""
+        INSERT INTO reportes (fecha, cliente, tecnico, observaciones, imagen_path, pdf_path, detalles_usuarios, email_enviado, latitud, longitud) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (fecha, cliente, tecnico, obs, fotos_json, pdf_path, detalles_json, estado_envio, lat, lon))
+    con.commit()
+    inserted_id = cur.lastrowid # <--- CAPTURAMOS EL ID
+    con.close()
+    return inserted_id # <--- LO RETORNAMOS
 
 def actualizar_reporte(id_reporte, fecha, cliente, tecnico, obs, fotos_json, pdf_path, detalles_json, estado_envio):
     con = conectar()

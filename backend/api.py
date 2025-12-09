@@ -65,6 +65,13 @@ def eliminar_archivos_temporales(rutas: List[str]):
             print(f"   ⚠️ Error borrando {ruta}: {e}")
 
 # --- ENDPOINT PRINCIPAL ---
+@app.delete("/reporte/{reporte_id}")
+def borrar_reporte(reporte_id: int):
+    exito = database.eliminar_reporte(reporte_id)
+    if not exito:
+        raise HTTPException(status_code=404, detail="Reporte no encontrado")
+    return {"status": "ok", "message": "Eliminado correctamente"}
+
 @app.post("/reporte/crear")
 async def crear_reporte(
     background_tasks: BackgroundTasks, # Inyectamos el gestor de tareas
@@ -78,6 +85,8 @@ async def crear_reporte(
     fotos: List[UploadFile] = File(None),
     firmas_usuarios: List[UploadFile] = File(None) 
 ):
+    
+    
     # Lista para rastrear qué archivos borrar al final
     archivos_para_borrar = []
 
@@ -168,7 +177,7 @@ async def crear_reporte(
 
         # 8. Guardar en BD Local
         fecha_actual = utils.obtener_hora_chile().strftime('%Y-%m-%d %H:%M:%S')
-        database.guardar_reporte(
+        server_id = database.guardar_reporte(
             fecha=fecha_actual,
             cliente=cliente,
             tecnico=tecnico,
@@ -178,6 +187,13 @@ async def crear_reporte(
             detalles_json=json.dumps(usuarios_parsed),
             estado_envio=1 if ok_email else 0
         )
+
+        return {
+            "status": "success",
+            "server_id": server_id, # <--- LO ENVIAMOS A LA APP
+            "pdf_generated": pdf_path,
+            "message": f"Email: {msg_email} | SP: {msg_sp}"
+        }
 
         # 9. PROGRAMAR LIMPIEZA EN SEGUNDO PLANO
         # Esto se ejecuta DESPUÉS de que la app recibe el "success"

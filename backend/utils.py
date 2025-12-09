@@ -153,34 +153,65 @@ def enviar_correo_graph(ruta_pdf, cliente, tecnico, email_tecnico=None):
     with open(ruta_pdf, "rb") as f:
         pdf_content = base64.b64encode(f.read()).decode("utf-8")
     
-    color_brand = config.COLOR_PRIMARIO
-    fecha_hoy = obtener_hora_chile().strftime('%d/%m/%Y')
-    
+    # --- DISEÑO DE CORREO MEJORADO ---
+    color = config.COLOR_PRIMARIO
     html_body = f"""
     <!DOCTYPE html>
     <html>
-    <head>
-        <style>
-            body {{ font-family: 'Segoe UI', sans-serif; background-color: #f4f4f4; }}
-            .container {{ max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }}
-            .header {{ background: {color_brand}; color: white; padding: 15px; text-align: center; border-radius: 8px 8px 0 0; }}
-            .content {{ padding: 20px; }}
-            .footer {{ font-size: 12px; color: #777; text-align: center; margin-top: 20px; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header"><h1>Reporte Técnico</h1></div>
-            <div class="content">
-                <p>Estimados <strong>{cliente}</strong>,</p>
-                <p>Se adjunta el reporte de la visita realizada por <strong>{tecnico}</strong> el día {fecha_hoy}.</p>
-                <p>Estado: <strong>Finalizado con Éxito</strong></p>
-            </div>
-            <div class="footer">Tecnocomp Ltda - Mensaje Automático</div>
-        </div>
+    <body style="margin:0; padding:0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
+        <table width="100%" border="0" cellspacing="0" cellpadding="0">
+            <tr>
+                <td align="center" style="padding: 20px;">
+                    <table width="600" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+                        <tr>
+                            <td bgcolor="{color}" style="padding: 30px; text-align: center; color: #ffffff;">
+                                <h1 style="margin:0; font-size: 24px; font-weight: 600;">REPORTE TÉCNICO</h1>
+                                <p style="margin:5px 0 0; font-size: 14px; opacity: 0.9;">Servicio de Visita en Terreno</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 40px 30px; color: #333333;">
+                                <p style="font-size: 16px; margin-bottom: 20px;">Estimados <strong>{cliente}</strong>,</p>
+                                <p style="line-height: 1.6; color: #555;">
+                                    Se ha completado satisfactoriamente la visita técnica programada. A continuación, se detallan los datos del servicio realizado por nuestro especialista.
+                                </p>
+                                
+                                <table width="100%" border="0" cellspacing="0" cellpadding="10" style="margin: 20px 0; background-color: #f9f9f9; border-left: 4px solid {color};">
+                                    <tr>
+                                        <td width="30%" style="font-weight: bold; color: #777;">TÉCNICO:</td>
+                                        <td style="font-weight: 600; color: #333;">{tecnico}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: bold; color: #777;">FECHA:</td>
+                                        <td style="font-weight: 600; color: #333;">{datetime.datetime.now().strftime('%d/%m/%Y')}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: bold; color: #777;">ESTADO:</td>
+                                        <td style="color: #27ae60; font-weight: bold;">✅ Finalizado con Éxito</td>
+                                    </tr>
+                                </table>
+
+                                <p style="text-align: center; font-size: 14px; color: #888; margin-top: 30px;">
+                                    📎 El informe completo se encuentra adjunto en formato PDF.
+                                </p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td bgcolor="#eeeeee" style="padding: 20px; text-align: center; font-size: 12px; color: #999;">
+                                <p style="margin: 0;">&copy; {datetime.datetime.now().year} {config.EMPRESA_NOMBRE}</p>
+                                <p style="margin: 5px 0 0;">Por favor, no responder a este correo automático.</p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
     </body>
     </html>
     """
+    # ... (El resto del código de envío es igual, usando html_body) ...
+    # Asegúrate de incluir el bloque de destinations y request.post aquí
+    # Si necesitas el bloque completo de nuevo, pídelo, pero es reemplazar solo el html_body
 
     # Construimos destinatarios
     destinatarios = [{"emailAddress": {"address": destinatario}}]
