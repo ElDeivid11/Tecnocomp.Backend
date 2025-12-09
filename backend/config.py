@@ -1,12 +1,12 @@
 import os
 
 # ==========================================
-# 1. CONFIGURACIÓN DE RUTAS Y SISTEMA (¡CRÍTICO!)
+# 1. CONFIGURACIÓN DE RUTAS Y SISTEMA
 # ==========================================
 # Obtenemos la ruta absoluta de donde está este archivo
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Definimos la carpeta temporal (Esto es lo que faltaba y causaba el Error 500)
+# Definimos la carpeta temporal
 TEMP_FOLDER = os.path.join(BASE_DIR, "temp_uploads")
 
 # Ruta de la base de datos
@@ -32,17 +32,16 @@ SHAREPOINT_SITE_PATH = "/sites/Pruueba"
 SHAREPOINT_DRIVE_NAME = "Documentos"
 SHAREPOINT_BACKUP_FOLDER = "Backups_DB"
 
-# --- NUEVO: IDs para la Lista de SharePoint ---
-# Reemplaza estos con los que obtuviste (Site ID y List ID)
-# Formato Site ID: hostname.sharepoint.com,uuid-site,uuid-web
+# IDs para la Lista de SharePoint
 SHAREPOINT_SITE_ID = "tecnocompcomputacion.sharepoint.com,f67a6766-495c-41e7-8caa-eb89b1801758,661e71e7-fee3-4a98-8c3e-323b2dd43bbe"
-SHAREPOINT_LIST_ID = "803eb871-8bcc-4561-bd91-599876787eb9"  # <--- FALTABA ESTE ID DE LA LISTA
+SHAREPOINT_LIST_ID = "803eb871-8bcc-4561-bd91-599876787eb9"
 
 # ==========================================
 # 4. CONFIGURACIÓN GENERAL Y ESTILOS
 # ==========================================
 FONT_FAMILY = "Helvetica"
 NOMBRE_EMPRESA_ONEDRIVE = "Tecnocomp Computacion Ltda"
+EMPRESA_NOMBRE = "Tecnocomp Ltda"  # <--- ¡ESTA ES LA VARIABLE QUE FALTABA!
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123") 
 
 TAREAS_MANTENIMIENTO = [
