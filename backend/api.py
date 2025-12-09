@@ -64,13 +64,48 @@ def eliminar_archivos_temporales(rutas: List[str]):
         except Exception as e:
             print(f"   ⚠️ Error borrando {ruta}: {e}")
 
-# --- ENDPOINT PRINCIPAL ---
+# --- ENDPOINTS DE BORRADO (NUEVOS) ---
+
 @app.delete("/reporte/{reporte_id}")
 def borrar_reporte(reporte_id: int):
-    exito = database.eliminar_reporte(reporte_id)
-    if not exito:
-        raise HTTPException(status_code=404, detail="Reporte no encontrado")
-    return {"status": "ok", "message": "Eliminado correctamente"}
+    # Intentamos borrar usando la función de DB (asegúrate de que existe en database.py)
+    # Si database.eliminar_reporte no existe, puedes usar una query directa o implementarla.
+    try:
+        exito = database.eliminar_reporte(reporte_id)
+        if not exito:
+            raise HTTPException(status_code=404, detail="Reporte no encontrado")
+        return {"status": "ok", "message": "Eliminado correctamente"}
+    except Exception as e:
+        # Si la función no existe en database.py, captura el error
+        print(f"Error borrando reporte: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/cliente/{nombre}")
+def borrar_cliente(nombre: str):
+    # Decodificar URL si viene con %20
+    import urllib.parse
+    nombre_limpio = urllib.parse.unquote(nombre)
+    if database.eliminar_cliente(nombre_limpio):
+        return {"status": "ok", "message": f"Cliente {nombre_limpio} eliminado"}
+    raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+@app.delete("/tecnico/{nombre}")
+def borrar_tecnico(nombre: str):
+    import urllib.parse
+    nombre_limpio = urllib.parse.unquote(nombre)
+    if database.eliminar_tecnico(nombre_limpio):
+        return {"status": "ok", "message": f"Técnico {nombre_limpio} eliminado"}
+    raise HTTPException(status_code=404, detail="Técnico no encontrado")
+
+@app.delete("/usuario/{cliente}/{nombre}")
+def borrar_usuario(cliente: str, nombre: str):
+    import urllib.parse
+    cliente_limpio = urllib.parse.unquote(cliente)
+    nombre_limpio = urllib.parse.unquote(nombre)
+    if database.eliminar_usuario(nombre_limpio, cliente_limpio):
+        return {"status": "ok", "message": f"Usuario {nombre_limpio} eliminado"}
+    raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
 
 @app.post("/reporte/crear")
 async def crear_reporte(
@@ -85,7 +120,6 @@ async def crear_reporte(
     fotos: List[UploadFile] = File(None),
     firmas_usuarios: List[UploadFile] = File(None) 
 ):
-    
     
     # Lista para rastrear qué archivos borrar al final
     archivos_para_borrar = []
@@ -188,21 +222,14 @@ async def crear_reporte(
             estado_envio=1 if ok_email else 0
         )
 
+        # 9. PROGRAMAR LIMPIEZA EN SEGUNDO PLANO
+        background_tasks.add_task(eliminar_archivos_temporales, archivos_para_borrar)
+
         return {
             "status": "success",
             "server_id": server_id, # <--- LO ENVIAMOS A LA APP
             "pdf_generated": pdf_path,
             "message": f"Email: {msg_email} | SP: {msg_sp}"
-        }
-
-        # 9. PROGRAMAR LIMPIEZA EN SEGUNDO PLANO
-        # Esto se ejecuta DESPUÉS de que la app recibe el "success"
-        background_tasks.add_task(eliminar_archivos_temporales, archivos_para_borrar)
-
-        return {
-            "status": "success",
-            "pdf_generated": pdf_path,
-            "message": f"Email: {msg_email} | Archivo SP: {msg_sp} | Lista SP: {msg_lista}"
         }
 
     except Exception as e:
