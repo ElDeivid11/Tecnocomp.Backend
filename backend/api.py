@@ -3,7 +3,8 @@ import os
 import json
 from typing import List, Optional
 from datetime import datetime
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+# IMPORTANTE: Agregamos BackgroundTasks para tareas en segundo plano
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
@@ -18,7 +19,7 @@ app = FastAPI(title="Tecnocomp API")
 # Inicializamos la DB
 database.inicializar_db()
 
-# Modelos
+# --- MODELOS ---
 class ClienteBase(BaseModel):
     nombre: str
     email: str
@@ -26,6 +27,7 @@ class ClienteBase(BaseModel):
 class TecnicoBase(BaseModel):
     nombre: str
 
+# --- ENDPOINTS DE LECTURA ---
 @app.get("/clientes")
 def get_clientes(): return database.obtener_clientes()
 
@@ -41,21 +43,46 @@ def create_cliente(cliente: ClienteBase):
 def get_usuarios(cliente_nombre: str):
     return database.obtener_usuarios_por_cliente(cliente_nombre)
 
+# --- NUEVO: ENDPOINT DE BACKUP MANUAL ---
+@app.get("/sistema/backup")
+def forzar_backup():
+    """
+    Llama a este link para guardar una copia de la DB en SharePoint:
+    https://tu-app.onrender.com/sistema/backup
+    """
+    ok, msg = utils.subir_backup_database()
+    return {"status": "ok" if ok else "error", "mensaje": msg}
+
+# --- FUNCIÓN DE LIMPIEZA (Se ejecuta después de responder) ---
+def eliminar_archivos_temporales(rutas: List[str]):
+    print(f"🧹 Iniciando limpieza de {len(rutas)} archivos temporales...")
+    for ruta in rutas:
+        try:
+            if os.path.exists(ruta):
+                os.remove(ruta)
+                print(f"   - Borrado: {ruta}")
+        except Exception as e:
+            print(f"   ⚠️ Error borrando {ruta}: {e}")
+
 # --- ENDPOINT PRINCIPAL ---
 @app.post("/reporte/crear")
 async def crear_reporte(
+    background_tasks: BackgroundTasks, # Inyectamos el gestor de tareas
     cliente: str = Form(...),
     tecnico: str = Form(...),
     obs: str = Form(""),
     datos_usuarios: str = Form(...), 
     email_cliente: str = Form(None), 
-    email_tecnico: str = Form(None), # Recibimos el email del técnico
+    email_tecnico: str = Form(None),
     firma_tecnico: UploadFile = File(None),
     fotos: List[UploadFile] = File(None),
     firmas_usuarios: List[UploadFile] = File(None) 
 ):
+    # Lista para rastrear qué archivos borrar al final
+    archivos_para_borrar = []
+
     try:
-        # 0. Actualizar email cliente si viene nuevo
+        # 0. Actualizar email
         if email_cliente:
             database.agregar_cliente(cliente, email_cliente)
             config.CORREOS_POR_CLIENTE[cliente] = email_cliente
@@ -73,6 +100,7 @@ async def crear_reporte(
                 with open(ruta_dest, "wb") as buffer:
                     shutil.copyfileobj(foto.file, buffer)
                 rutas_fotos_servidor.append(os.path.abspath(ruta_dest))
+                archivos_para_borrar.append(os.path.abspath(ruta_dest))
 
         # 2. Guardar Firmas
         rutas_firmas_servidor = {} 
@@ -83,6 +111,7 @@ async def crear_reporte(
                 with open(ruta_dest, "wb") as buffer:
                     shutil.copyfileobj(firma.file, buffer)
                 rutas_firmas_servidor[clean_name] = os.path.abspath(ruta_dest)
+                archivos_para_borrar.append(os.path.abspath(ruta_dest))
 
         # 3. Mapear rutas
         contador_fotos = 0
@@ -111,6 +140,9 @@ async def crear_reporte(
             path_firma=path_firma_tec,
             datos_usuarios=usuarios_parsed 
         )
+        # Agregamos el PDF a la lista de borrado
+        if pdf_path:
+            archivos_para_borrar.append(pdf_path)
 
         # 5. SUBIR A SHAREPOINT (DRIVE) y obtener LINK
         ok_sp, msg_sp, web_url = utils.subir_archivo_sharepoint(pdf_path, cliente)
@@ -125,12 +157,16 @@ async def crear_reporte(
                 "fecha": datetime.now().strftime("%Y-%m-%d %H:%M"),
                 "link": web_url
             }
-            ok_lista, msg_lista = utils.crear_item_lista(datos_lista)
+            # Si falla la lista, no queremos que falle todo el reporte
+            try:
+                ok_lista, msg_lista = utils.crear_item_lista(datos_lista)
+            except:
+                msg_lista = "Error escribiendo en lista"
 
-        # 7. ENVIAR CORREOS (Con copia al técnico si aplica)
+        # 7. ENVIAR CORREOS
         ok_email, msg_email = utils.enviar_correo_graph(pdf_path, cliente, tecnico, email_tecnico)
 
-        # 8. Guardar en BD Local (Historial backend)
+        # 8. Guardar en BD Local
         fecha_actual = utils.obtener_hora_chile().strftime('%Y-%m-%d %H:%M:%S')
         database.guardar_reporte(
             fecha=fecha_actual,
@@ -142,6 +178,10 @@ async def crear_reporte(
             detalles_json=json.dumps(usuarios_parsed),
             estado_envio=1 if ok_email else 0
         )
+
+        # 9. PROGRAMAR LIMPIEZA EN SEGUNDO PLANO
+        # Esto se ejecuta DESPUÉS de que la app recibe el "success"
+        background_tasks.add_task(eliminar_archivos_temporales, archivos_para_borrar)
 
         return {
             "status": "success",
@@ -156,9 +196,5 @@ async def crear_reporte(
 
 if __name__ == "__main__":
     import os
-    # IMPORTANTE: Render nos pasa el puerto en la variable de entorno 'PORT'.
-    # Si no existe (estamos en local), usamos el 8000.
     port = int(os.environ.get("PORT", 8000))
-    
-    # Iniciamos Uvicorn escuchando en 0.0.0.0 y el puerto correcto
     uvicorn.run(app, host="0.0.0.0", port=port)
