@@ -6,13 +6,33 @@ import os
 # Obtenemos la ruta absoluta de donde está este archivo
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Definimos la carpeta temporal
+# Definimos la carpeta temporal para subidas (se borra sola, no necesita persistencia)
 TEMP_FOLDER = os.path.join(BASE_DIR, "temp_uploads")
 
-# Ruta de la base de datos
-DB_PATH = os.path.join(BASE_DIR, "visitas.db")
+# --- CONFIGURACIÓN DE BASE DE DATOS (PERSISTENCIA) ---
+# Detectamos si estamos corriendo en Render mediante la variable de entorno
+if os.getenv("RENDER"):
+    # EN PRODUCCIÓN (RENDER):
+    # Usamos la ruta del Disco Persistente. 
+    # IMPORTANTE: En el Dashboard de Render, el "Mount Path" del disco debe ser: /opt/render/project/src/data
+    DATA_DIR = "/opt/render/project/src/data"
+    
+    # Nos aseguramos que el directorio exista (por seguridad)
+    if not os.path.exists(DATA_DIR):
+        try:
+            os.makedirs(DATA_DIR)
+        except OSError:
+            pass # Si el disco está montado, a veces no deja crear, pero ya existe.
+            
+    DB_PATH = os.path.join(DATA_DIR, "visitas.db")
+    print(f"--> MODO RENDER DETECTADO. Usando DB en: {DB_PATH}")
+else:
+    # EN DESARROLLO (LOCAL):
+    # Guardamos la DB en la misma carpeta del código
+    DB_PATH = os.path.join(BASE_DIR, "visitas.db")
+    print(f"--> MODO LOCAL. Usando DB en: {DB_PATH}")
 
-# Asegurar que existan los directorios necesarios al iniciar
+# Asegurar que existan los directorios temporales necesarios al iniciar
 if not os.path.exists(TEMP_FOLDER):
     os.makedirs(TEMP_FOLDER)
 
@@ -41,7 +61,7 @@ SHAREPOINT_LIST_ID = "803eb871-8bcc-4561-bd91-599876787eb9"
 # ==========================================
 FONT_FAMILY = "Helvetica"
 NOMBRE_EMPRESA_ONEDRIVE = "Tecnocomp Computacion Ltda"
-EMPRESA_NOMBRE = "Tecnocomp Ltda"  # <--- ¡ESTA ES LA VARIABLE QUE FALTABA!
+EMPRESA_NOMBRE = "Tecnocomp Ltda" 
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123") 
 
 TAREAS_MANTENIMIENTO = [
