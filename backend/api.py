@@ -27,6 +27,11 @@ class ClienteBase(BaseModel):
 class TecnicoBase(BaseModel):
     nombre: str
 
+# Nuevo Modelo para Usuarios
+class UsuarioBase(BaseModel):
+    nombre: str
+    cliente_nombre: str
+
 # --- ENDPOINTS DE LECTURA ---
 @app.get("/clientes")
 def get_clientes(): return database.obtener_clientes()
@@ -34,21 +39,46 @@ def get_clientes(): return database.obtener_clientes()
 @app.get("/tecnicos")
 def get_tecnicos(): return database.obtener_tecnicos()
 
+# --- NUEVO: OBTENER TODOS LOS USUARIOS (Para sincronizar entre tablets) ---
+@app.get("/usuarios_todos")
+def get_all_usuarios():
+    # Conectamos directamente para sacar todo el listado global
+    con = database.conectar()
+    cur = con.cursor()
+    cur.execute("SELECT nombre, cliente_nombre FROM usuarios")
+    # Formateamos como lista de diccionarios
+    datos = [{"nombre": row[0], "cliente": row[1]} for row in cur.fetchall()]
+    con.close()
+    return datos
+
 @app.post("/clientes")
 def create_cliente(cliente: ClienteBase):
     database.agregar_cliente(cliente.nombre, cliente.email)
     return {"status": "ok"}
 
+# --- NUEVO: CREAR TÉCNICO ---
+@app.post("/tecnicos")
+def create_tecnico(tecnico: TecnicoBase):
+    if database.agregar_nuevo_tecnico(tecnico.nombre):
+        return {"status": "ok"}
+    raise HTTPException(status_code=400, detail="Error o técnico ya existe")
+
+# --- NUEVO: CREAR USUARIO ---
+@app.post("/usuarios")
+def create_usuario(usuario: UsuarioBase):
+    if database.agregar_usuario(usuario.nombre, usuario.cliente_nombre):
+        return {"status": "ok"}
+    raise HTTPException(status_code=400, detail="Error al crear usuario")
+
 @app.get("/usuarios/{cliente_nombre}")
 def get_usuarios(cliente_nombre: str):
     return database.obtener_usuarios_por_cliente(cliente_nombre)
 
-# --- NUEVO: ENDPOINT DE BACKUP MANUAL ---
+# --- ENDPOINT DE BACKUP MANUAL ---
 @app.get("/sistema/backup")
 def forzar_backup():
     """
-    Llama a este link para guardar una copia de la DB en SharePoint:
-    https://tu-app.onrender.com/sistema/backup
+    Llama a este link para guardar una copia de la DB en SharePoint.
     """
     ok, msg = utils.subir_backup_database()
     return {"status": "ok" if ok else "error", "mensaje": msg}
@@ -64,25 +94,38 @@ def eliminar_archivos_temporales(rutas: List[str]):
         except Exception as e:
             print(f"   ⚠️ Error borrando {ruta}: {e}")
 
-# --- ENDPOINTS DE BORRADO (NUEVOS) ---
+# --- ENDPOINTS DE BORRADO ---
 
 @app.delete("/reporte/{reporte_id}")
 def borrar_reporte(reporte_id: int):
-    # Intentamos borrar usando la función de DB (asegúrate de que existe en database.py)
-    # Si database.eliminar_reporte no existe, puedes usar una query directa o implementarla.
     try:
-        exito = database.eliminar_reporte(reporte_id)
-        if not exito:
+        # Nota: Asegúrate de que database.eliminar_reporte exista o usa una query directa
+        # Si no tienes la función en database.py, puedes descomentar esto:
+        # con = database.conectar()
+        # con.execute("DELETE FROM reportes WHERE id = ?", (reporte_id,))
+        # con.commit()
+        # con.close()
+        # return {"status": "ok"}
+        
+        # Asumiendo que existe o usando una genérica:
+        con = database.conectar()
+        cur = con.cursor()
+        cur.execute("DELETE FROM reportes WHERE id = ?", (reporte_id,))
+        filas = cur.rowcount
+        con.commit()
+        con.close()
+        
+        if filas > 0:
+            return {"status": "ok", "message": "Eliminado correctamente"}
+        else:
             raise HTTPException(status_code=404, detail="Reporte no encontrado")
-        return {"status": "ok", "message": "Eliminado correctamente"}
+            
     except Exception as e:
-        # Si la función no existe en database.py, captura el error
         print(f"Error borrando reporte: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/cliente/{nombre}")
 def borrar_cliente(nombre: str):
-    # Decodificar URL si viene con %20
     import urllib.parse
     nombre_limpio = urllib.parse.unquote(nombre)
     if database.eliminar_cliente(nombre_limpio):
@@ -109,7 +152,7 @@ def borrar_usuario(cliente: str, nombre: str):
 
 @app.post("/reporte/crear")
 async def crear_reporte(
-    background_tasks: BackgroundTasks, # Inyectamos el gestor de tareas
+    background_tasks: BackgroundTasks, 
     cliente: str = Form(...),
     tecnico: str = Form(...),
     obs: str = Form(""),
@@ -121,7 +164,6 @@ async def crear_reporte(
     firmas_usuarios: List[UploadFile] = File(None) 
 ):
     
-    # Lista para rastrear qué archivos borrar al final
     archivos_para_borrar = []
 
     try:
@@ -183,14 +225,13 @@ async def crear_reporte(
             path_firma=path_firma_tec,
             datos_usuarios=usuarios_parsed 
         )
-        # Agregamos el PDF a la lista de borrado
         if pdf_path:
             archivos_para_borrar.append(pdf_path)
 
-        # 5. SUBIR A SHAREPOINT (DRIVE) y obtener LINK
+        # 5. SUBIR A SHAREPOINT
         ok_sp, msg_sp, web_url = utils.subir_archivo_sharepoint(pdf_path, cliente)
 
-        # 6. CREAR ITEM EN LISTA SHAREPOINT (DASHBOARD)
+        # 6. CREAR ITEM EN LISTA
         msg_lista = "Lista omitida (sin URL)"
         if ok_sp and web_url:
             datos_lista = {
@@ -200,7 +241,6 @@ async def crear_reporte(
                 "fecha": datetime.now().strftime("%Y-%m-%d %H:%M"),
                 "link": web_url
             }
-            # Si falla la lista, no queremos que falle todo el reporte
             try:
                 ok_lista, msg_lista = utils.crear_item_lista(datos_lista)
             except:
@@ -222,12 +262,12 @@ async def crear_reporte(
             estado_envio=1 if ok_email else 0
         )
 
-        # 9. PROGRAMAR LIMPIEZA EN SEGUNDO PLANO
+        # 9. PROGRAMAR LIMPIEZA
         background_tasks.add_task(eliminar_archivos_temporales, archivos_para_borrar)
 
         return {
             "status": "success",
-            "server_id": server_id, # <--- LO ENVIAMOS A LA APP
+            "server_id": server_id,
             "pdf_generated": pdf_path,
             "message": f"Email: {msg_email} | SP: {msg_sp}"
         }
