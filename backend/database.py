@@ -2,7 +2,7 @@ import sqlite3
 import json
 import config
 
-DB_NAME = "visitas.db"
+DB_NAME = config.DB_PATH if hasattr(config, 'DB_PATH') else "visitas.db"
 
 def conectar():
     return sqlite3.connect(DB_NAME)
@@ -42,33 +42,38 @@ def inicializar_db():
         )
     """)
 
-    # --- MIGRACIONES DE COLUMNAS ---
-    try: cur.execute("ALTER TABLE reportes ADD COLUMN pdf_path TEXT")
-    except: pass
-    try: cur.execute("ALTER TABLE reportes ADD COLUMN detalles_usuarios TEXT")
-    except: pass
-    try: cur.execute("ALTER TABLE reportes ADD COLUMN email_enviado INTEGER DEFAULT 0")
-    except: pass
-    try: cur.execute("ALTER TABLE reportes ADD COLUMN latitud TEXT")
-    except: pass
-    try: cur.execute("ALTER TABLE reportes ADD COLUMN longitud TEXT")
-    except: pass
+    # --- MIGRACIONES DE COLUMNAS (Para evitar errores si ya existen) ---
+    columnas_reportes = [
+        ("pdf_path", "TEXT"),
+        ("detalles_usuarios", "TEXT"),
+        ("email_enviado", "INTEGER DEFAULT 0"),
+        ("latitud", "TEXT"),
+        ("longitud", "TEXT")
+    ]
+    
+    for col, tipo in columnas_reportes:
+        try: 
+            cur.execute(f"ALTER TABLE reportes ADD COLUMN {col} {tipo}")
+        except: pass
 
-    # --- DATOS POR DEFECTO ---
-    cur.execute("SELECT COUNT(*) FROM tecnicos")
-    if cur.fetchone()[0] == 0:
-        cur.executemany("INSERT OR IGNORE INTO tecnicos (nombre) VALUES (?)", [("Francisco Alfaro",), ("David Quezada",)])
+    # --- DATOS POR DEFECTO (ELIMINADO) ---
+    # He comentado estas líneas para evitar que los datos borrados reaparezcan.
+    # Si quieres iniciar con datos vacíos, esto es lo correcto.
+    
+    # cur.execute("SELECT COUNT(*) FROM tecnicos")
+    # if cur.fetchone()[0] == 0:
+    #     cur.executemany("INSERT OR IGNORE INTO tecnicos (nombre) VALUES (?)", [("Francisco Alfaro",), ("David Quezada",)])
 
-    cur.execute("SELECT COUNT(*) FROM clientes")
-    if cur.fetchone()[0] == 0:
-        for cli, email in config.CORREOS_POR_CLIENTE.items():
-            cur.execute("INSERT OR IGNORE INTO clientes (nombre, email) VALUES (?, ?)", (cli, email))
+    # cur.execute("SELECT COUNT(*) FROM clientes")
+    # if cur.fetchone()[0] == 0:
+    #     for cli, email in config.CORREOS_POR_CLIENTE.items():
+    #         cur.execute("INSERT OR IGNORE INTO clientes (nombre, email) VALUES (?, ?)", (cli, email))
             
-    cur.execute("SELECT COUNT(*) FROM usuarios")
-    if cur.fetchone()[0] == 0:
-        for cli, lista_users in config.USUARIOS_POR_CLIENTE.items():
-            for u in lista_users:
-                cur.execute("INSERT INTO usuarios (nombre, cliente_nombre) VALUES (?, ?)", (u, cli))
+    # cur.execute("SELECT COUNT(*) FROM usuarios")
+    # if cur.fetchone()[0] == 0:
+    #     for cli, lista_users in config.USUARIOS_POR_CLIENTE.items():
+    #         for u in lista_users:
+    #             cur.execute("INSERT INTO usuarios (nombre, cliente_nombre) VALUES (?, ?)", (u, cli))
 
     con.commit()
     con.close()
@@ -123,7 +128,6 @@ def agregar_cliente(nombre, email):
     try: 
         con = conectar()
         cur = con.cursor()
-        # MODIFICADO: Usamos INSERT OR REPLACE para actualizar el email si el cliente ya existe
         cur.execute("INSERT OR REPLACE INTO clientes (nombre, email) VALUES (?, ?)", (nombre, email))
         con.commit()
         con.close()
@@ -136,6 +140,7 @@ def eliminar_cliente(nombre):
     try:
         con = conectar()
         cur = con.cursor()
+        # Primero borramos usuarios asociados para mantener integridad
         cur.execute("DELETE FROM usuarios WHERE cliente_nombre = ?", (nombre,))
         cur.execute("DELETE FROM clientes WHERE nombre = ?", (nombre,))
         con.commit()
@@ -184,7 +189,20 @@ def eliminar_usuario(nombre, cliente_nombre):
     except: 
         return False
 
-# --- FUNCIONES REPORTES ---
+# --- FUNCIONES REPORTES (CRUD y ELIMINACIÓN) ---
+
+def eliminar_reporte(id_reporte):
+    try:
+        con = conectar()
+        cur = con.cursor()
+        cur.execute("DELETE FROM reportes WHERE id = ?", (id_reporte,))
+        filas_afectadas = cur.rowcount
+        con.commit()
+        con.close()
+        return filas_afectadas > 0
+    except Exception as e:
+        print(f"Error eliminando reporte: {e}")
+        return False
 
 def obtener_conteo_reportes():
     con = conectar()
@@ -241,21 +259,9 @@ def guardar_reporte(fecha, cliente, tecnico, obs, fotos_json, pdf_path, detalles
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (fecha, cliente, tecnico, obs, fotos_json, pdf_path, detalles_json, estado_envio, lat, lon))
     con.commit()
-    inserted_id = cur.lastrowid # <--- CAPTURAMOS EL ID
+    inserted_id = cur.lastrowid 
     con.close()
-    return inserted_id # <--- LO RETORNAMOS
-
-def guardar_reporte(fecha, cliente, tecnico, obs, fotos_json, pdf_path, detalles_json, estado_envio, lat="", lon=""):
-    con = conectar()
-    cur = con.cursor()
-    cur.execute("""
-        INSERT INTO reportes (fecha, cliente, tecnico, observaciones, imagen_path, pdf_path, detalles_usuarios, email_enviado, latitud, longitud) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (fecha, cliente, tecnico, obs, fotos_json, pdf_path, detalles_json, estado_envio, lat, lon))
-    con.commit()
-    inserted_id = cur.lastrowid # <--- CAPTURAMOS EL ID
-    con.close()
-    return inserted_id # <--- LO RETORNAMOS
+    return inserted_id 
 
 def actualizar_reporte(id_reporte, fecha, cliente, tecnico, obs, fotos_json, pdf_path, detalles_json, estado_envio):
     con = conectar()
@@ -269,7 +275,6 @@ def actualizar_reporte(id_reporte, fecha, cliente, tecnico, obs, fotos_json, pdf
     con.close()
 
 def obtener_reportes_pendientes():
-    """Retorna los reportes que no se han enviado por correo (email_enviado = 0)"""
     con = conectar()
     cur = con.cursor()
     cur.execute("SELECT id, pdf_path, cliente, tecnico FROM reportes WHERE email_enviado = 0")
@@ -277,22 +282,18 @@ def obtener_reportes_pendientes():
     con.close()
     return datos
 
-# --- NUEVAS FUNCIONES PARA MÉTRICAS AVANZADAS ---
+# --- NUEVAS FUNCIONES PARA MÉTRICAS ---
 
 def obtener_kpis_generales():
-    """Retorna (Total Visitas, Pendientes Envío, Cliente Top)"""
     con = conectar()
     cur = con.cursor()
     
-    # Total
     cur.execute("SELECT COUNT(*) FROM reportes")
     total = cur.fetchone()[0]
     
-    # Pendientes
     cur.execute("SELECT COUNT(*) FROM reportes WHERE email_enviado = 0")
     pendientes = cur.fetchone()[0]
     
-    # Cliente Top
     cur.execute("SELECT cliente, COUNT(*) as c FROM reportes GROUP BY cliente ORDER BY c DESC LIMIT 1")
     top_cli = cur.fetchone()
     cliente_top = f"{top_cli[0]} ({top_cli[1]})" if top_cli else "N/A"
@@ -301,10 +302,8 @@ def obtener_kpis_generales():
     return total, pendientes, cliente_top
 
 def obtener_evolucion_mensual():
-    """Retorna lista [(Mes, Cantidad)] de los últimos 6 meses"""
     con = conectar()
     cur = con.cursor()
-    # SQLite usa substr para obtener 'YYYY-MM'
     cur.execute("""
         SELECT substr(fecha, 1, 7) as mes, COUNT(*) 
         FROM reportes 
@@ -312,6 +311,6 @@ def obtener_evolucion_mensual():
         ORDER BY mes DESC 
         LIMIT 6
     """)
-    datos = cur.fetchall() # Viene del más reciente al más antiguo
+    datos = cur.fetchall() 
     con.close()
-    return datos[::-1] # Invertimos para que el gráfico vaya de izquierda a derecha
+    return datos[::-1]
