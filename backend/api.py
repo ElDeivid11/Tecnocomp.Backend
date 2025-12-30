@@ -31,7 +31,6 @@ class TecnicoBase(BaseModel):
 class UsuarioBase(BaseModel):
     nombre: str
     cliente: str
-    cliente_nombre: str
 
 # --- ENDPOINTS DE LECTURA ---
 @app.get("/clientes")
