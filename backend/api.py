@@ -30,6 +30,7 @@ class TecnicoBase(BaseModel):
 # Nuevo Modelo para Usuarios
 class UsuarioBase(BaseModel):
     nombre: str
+    cliente: str
     cliente_nombre: str
 
 # --- ENDPOINTS DE LECTURA ---
@@ -59,16 +60,20 @@ def create_cliente(cliente: ClienteBase):
 # --- NUEVO: CREAR TÉCNICO ---
 @app.post("/tecnicos")
 def create_tecnico(tecnico: TecnicoBase):
+    # Usamos la función que ya existe en database.py
     if database.agregar_nuevo_tecnico(tecnico.nombre):
-        return {"status": "ok"}
-    raise HTTPException(status_code=400, detail="Error o técnico ya existe")
+        return {"status": "ok", "message": "Técnico creado"}
+    else:
+        # Si ya existe o falla, devolvemos ok para no trabar la sync
+        return {"status": "ok", "message": "Técnico ya existía o error"}
 
 # --- NUEVO: CREAR USUARIO ---
 @app.post("/usuarios")
 def create_usuario(usuario: UsuarioBase):
-    if database.agregar_usuario(usuario.nombre, usuario.cliente_nombre):
-        return {"status": "ok"}
-    raise HTTPException(status_code=400, detail="Error al crear usuario")
+    if database.agregar_usuario(usuario.nombre, usuario.cliente):
+        return {"status": "ok", "message": "Usuario creado"}
+    else:
+        return {"status": "ok", "message": "Usuario ya existía o error"}
 
 @app.get("/usuarios/{cliente_nombre}")
 def get_usuarios(cliente_nombre: str):
